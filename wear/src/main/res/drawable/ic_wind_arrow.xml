@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp"
+    android:height="24dp"
+    android:viewportWidth="24"
+    android:viewportHeight="24">
+    <!-- Points east (0°); rotate for wind blow direction. Wide hollow outline. -->
+    <path
+        android:fillColor="@android:color/transparent"
+        android:pathData="M3,10.5 L10,10.5 L10,3 L22,12 L10,21 L10,13.5 L3,13.5 Z"
+        android:strokeColor="#2B4C9E"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round"
+        android:strokeWidth="2.25" />
+</vector>

@@ -1,0 +1,24 @@
+# Reference / preview assets (not in repo)
+faces/
+
+# Android / Gradle
+.gradle/
+**/build/
+local.properties
+*.iml
+.idea/
+.cxx/
+.externalNativeBuild/
+captures/
+
+# Kotlin
+.kotlin/
+
+# Build outputs
+*.apk
+*.ap_
+*.aab
+
+# OS
+.DS_Store
+Thumbs.db

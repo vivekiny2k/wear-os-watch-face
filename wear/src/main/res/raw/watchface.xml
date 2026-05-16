@@ -1,0 +1,176 @@
+<?xml version="1.0" encoding="utf-8"?>
+<WatchFace width="450" height="450" clipShape="CIRCLE">
+    <Scene>
+        <Background>
+            <Color color="#FFFFFFFF" />
+        </Background>
+
+        <Line x="24" y="96" length="402" thickness="2" direction="HORIZONTAL">
+            <Variant mode="AMBIENT" target="alpha" value="0" />
+            <Color color="#ADD8E6" />
+        </Line>
+        <Line x="24" y="240" length="402" thickness="2" direction="HORIZONTAL">
+            <Variant mode="AMBIENT" target="alpha" value="0" />
+            <Color color="#ADD8E6" />
+        </Line>
+        <Line x="132" y="240" length="182" thickness="2" direction="VERTICAL">
+            <Variant mode="AMBIENT" target="alpha" value="0" />
+            <Color color="#ADD8E6" />
+        </Line>
+        <Line x="316" y="240" length="182" thickness="2" direction="VERTICAL">
+            <Variant mode="AMBIENT" target="alpha" value="0" />
+            <Color color="#ADD8E6" />
+        </Line>
+
+        <DigitalClock x="40" y="108" width="370" height="72">
+            <Variant mode="AMBIENT" target="alpha" value="0" />
+            <TimeText format="hh:mm:ss" align="CENTER">
+                <Font family="sans-serif" size="48" weight="BOLD" color="#FF000000" />
+            </TimeText>
+        </DigitalClock>
+
+        <!-- Ambient primary time (salmon, upper-left) -->
+        <DigitalClock x="36" y="48" width="200" height="80">
+            <Variant mode="NORMAL" target="alpha" value="0" />
+            <TimeText format="hh:mm" align="LEFT">
+                <Font family="sans-serif" size="52" weight="BOLD" color="#FFFA8072" />
+            </TimeText>
+        </DigitalClock>
+
+        <ComplicationSlot slotId="100" name="SLOT_TEMPERATURE" displayName="Temperature">
+            <BoundingRect x="24" y="18" width="90" height="36" />
+            <Complication type="SHORT_TEXT">
+                <DefaultProviderPolicy
+                    primaryProvider="com.watchapp/com.watchapp.complications.WatchDataComplicationService"
+                    primaryProviderType="WATCH_APP" />
+            </Complication>
+            <Variant mode="AMBIENT">
+                <BoundingRect x="280" y="300" width="100" height="32" />
+            </Variant>
+        </ComplicationSlot>
+
+        <ComplicationSlot slotId="101" name="SLOT_WEATHER_ICON" displayName="Weather">
+            <BoundingRect x="168" y="14" width="72" height="72" />
+            <Complication type="SMALL_IMAGE">
+                <DefaultProviderPolicy
+                    primaryProvider="com.watchapp/com.watchapp.complications.WatchDataComplicationService"
+                    primaryProviderType="WATCH_APP" />
+            </Complication>
+            <Variant mode="AMBIENT">
+                <BoundingRect x="388" y="296" width="56" height="56" />
+            </Variant>
+        </ComplicationSlot>
+
+        <ComplicationSlot slotId="102" name="SLOT_WIND" displayName="Wind">
+            <BoundingRect x="252" y="18" width="174" height="28" />
+            <Complication type="SHORT_TEXT">
+                <DefaultProviderPolicy
+                    primaryProvider="com.watchapp/com.watchapp.complications.WatchDataComplicationService"
+                    primaryProviderType="WATCH_APP" />
+            </Complication>
+            <Variant mode="AMBIENT">
+                <BoundingRect x="280" y="332" width="100" height="24" />
+            </Variant>
+        </ComplicationSlot>
+
+        <ComplicationSlot slotId="103" name="SLOT_CONDITIONS" displayName="Conditions">
+            <BoundingRect x="252" y="46" width="174" height="24" />
+            <Complication type="SHORT_TEXT">
+                <DefaultProviderPolicy
+                    primaryProvider="com.watchapp/com.watchapp.complications.WatchDataComplicationService"
+                    primaryProviderType="WATCH_APP" />
+            </Complication>
+            <Variant mode="AMBIENT" target="alpha" value="0" />
+        </ComplicationSlot>
+
+        <ComplicationSlot slotId="104" name="SLOT_DATE" displayName="Date">
+            <BoundingRect x="24" y="192" width="200" height="32" />
+            <Complication type="SHORT_TEXT">
+                <DefaultProviderPolicy
+                    primaryProvider="com.watchapp/com.watchapp.complications.WatchDataComplicationService"
+                    primaryProviderType="WATCH_APP" />
+            </Complication>
+            <Variant mode="AMBIENT" target="alpha" value="0" />
+        </ComplicationSlot>
+
+        <ComplicationSlot slotId="105" name="SLOT_ALT_TIME" displayName="Alt Time">
+            <BoundingRect x="248" y="186" width="178" height="44" />
+            <Complication type="SHORT_TEXT">
+                <DefaultProviderPolicy
+                    primaryProvider="com.watchapp/com.watchapp.complications.WatchDataComplicationService"
+                    primaryProviderType="WATCH_APP" />
+            </Complication>
+            <Variant mode="AMBIENT" target="alpha" value="0" />
+        </ComplicationSlot>
+
+        <ComplicationSlot slotId="106" name="SLOT_SUNRISE" displayName="Sunrise">
+            <BoundingRect x="20" y="252" width="80" height="28" />
+            <Complication type="SHORT_TEXT">
+                <DefaultProviderPolicy
+                    primaryProvider="com.watchapp/com.watchapp.complications.WatchDataComplicationService"
+                    primaryProviderType="WATCH_APP" />
+            </Complication>
+            <Variant mode="AMBIENT" target="alpha" value="0" />
+        </ComplicationSlot>
+
+        <ComplicationSlot slotId="107" name="SLOT_LOCATION" displayName="Location">
+            <BoundingRect x="148" y="252" width="154" height="28" />
+            <Complication type="SHORT_TEXT">
+                <DefaultProviderPolicy
+                    primaryProvider="com.watchapp/com.watchapp.complications.WatchDataComplicationService"
+                    primaryProviderType="WATCH_APP" />
+            </Complication>
+            <Variant mode="AMBIENT" target="alpha" value="0" />
+        </ComplicationSlot>
+
+        <ComplicationSlot slotId="108" name="SLOT_ALTITUDE" displayName="Altitude">
+            <BoundingRect x="148" y="288" width="154" height="32" />
+            <Complication type="SHORT_TEXT">
+                <DefaultProviderPolicy
+                    primaryProvider="com.watchapp/com.watchapp.complications.WatchDataComplicationService"
+                    primaryProviderType="WATCH_APP" />
+            </Complication>
+            <Variant mode="AMBIENT" target="alpha" value="0" />
+        </ComplicationSlot>
+
+        <ComplicationSlot slotId="109" name="SLOT_SUNSET" displayName="Sunset">
+            <BoundingRect x="350" y="252" width="80" height="28" />
+            <Complication type="SHORT_TEXT">
+                <DefaultProviderPolicy
+                    primaryProvider="com.watchapp/com.watchapp.complications.WatchDataComplicationService"
+                    primaryProviderType="WATCH_APP" />
+            </Complication>
+            <Variant mode="AMBIENT" target="alpha" value="0" />
+        </ComplicationSlot>
+
+        <ComplicationSlot slotId="110" name="SLOT_AMBIENT_TZ1" displayName="TZ1">
+            <BoundingRect x="36" y="140" width="180" height="24" />
+            <Complication type="SHORT_TEXT">
+                <DefaultProviderPolicy
+                    primaryProvider="com.watchapp/com.watchapp.complications.WatchDataComplicationService"
+                    primaryProviderType="WATCH_APP" />
+            </Complication>
+            <Variant mode="NORMAL" target="alpha" value="0" />
+        </ComplicationSlot>
+
+        <ComplicationSlot slotId="111" name="SLOT_AMBIENT_TZ2" displayName="TZ2">
+            <BoundingRect x="36" y="168" width="180" height="24" />
+            <Complication type="SHORT_TEXT">
+                <DefaultProviderPolicy
+                    primaryProvider="com.watchapp/com.watchapp.complications.WatchDataComplicationService"
+                    primaryProviderType="WATCH_APP" />
+            </Complication>
+            <Variant mode="NORMAL" target="alpha" value="0" />
+        </ComplicationSlot>
+
+        <Group x="0" y="0" width="450" height="450">
+            <Variant mode="AMBIENT">
+                <Background>
+                    <Color color="#FF000000" />
+                </Background>
+            </Variant>
+        </Group>
+
+        <!-- Action panel: center tap only (handled in WatchFaceWallpaperService TapListener) -->
+    </Scene>
+</WatchFace>

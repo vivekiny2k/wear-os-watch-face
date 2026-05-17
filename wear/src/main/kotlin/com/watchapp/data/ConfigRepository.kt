@@ -23,6 +23,7 @@ class ConfigRepository(private val context: Context) {
     private val refreshKey = intPreferencesKey("refresh_minutes")
     private val timezoneKey = stringPreferencesKey("timezone_json")
     private val buttonsKey = stringPreferencesKey("buttons_json")
+    private val panelsKey = stringPreferencesKey("panels_json")
 
     fun getConfig(): AppConfig = runBlocking {
         val prefs = context.configDataStore.data.first()
@@ -54,16 +55,24 @@ class ConfigRepository(private val context: Context) {
         }
     }
 
-    suspend fun getButtons(): List<ButtonConfig> =
+    suspend fun getPanels(): List<List<ButtonConfig>> =
         context.configDataStore.data.map { prefs ->
-            prefs[buttonsKey]?.let { runCatching { ConfigJson.decodeButtons(it) }.getOrNull() }
-        }.first()?.takeIf { it.isNotEmpty() } ?: DefaultButtons.panelOne()
+            prefs[panelsKey]?.let { runCatching { ConfigJson.decodePanels(it) }.getOrNull() }
+                ?: prefs[buttonsKey]?.let { runCatching { ConfigJson.decodePanels(it) }.getOrNull() }
+        }.first()?.takeIf { it.isNotEmpty() } ?: DefaultButtons.allPanels()
+
+    suspend fun getButtons(): List<ButtonConfig> = getPanels().flatten()
 
     fun getButtonsBlocking(): List<ButtonConfig> = runBlocking { getButtons() }
 
-    suspend fun saveButtons(buttons: List<ButtonConfig>) {
+    suspend fun savePanels(panels: List<List<ButtonConfig>>) {
         context.configDataStore.edit {
-            it[buttonsKey] = ConfigJson.encodeButtons(buttons)
+            it[panelsKey] = ConfigJson.encodePanels(panels)
+            it[buttonsKey] = ConfigJson.encodeButtons(panels.flatten())
         }
+    }
+
+    suspend fun saveButtons(buttons: List<ButtonConfig>) {
+        savePanels(listOf(buttons))
     }
 }

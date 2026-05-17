@@ -7,7 +7,7 @@ ROOT = Path(__file__).resolve().parents[1]
 OUT = ROOT / "faces" / "local_render_active.png"
 REF = ROOT / "faces" / "preview.jpg"
 DSEG7 = ROOT / "wear/src/main/res/font/dseg7_classic_bold.ttf"
-CLOCK_MONO = ROOT / "wear/src/main/res/font/clock_mono_bold.ttf"
+CLOCK_FONT = ROOT / "wear/src/main/res/font/clock_square_bold.ttf"
 SIZE = 512
 S = SIZE / 450.0
 DIVIDER_TOP, DIVIDER_DATE, DIVIDER_BOTTOM = 134, 280, 430
@@ -45,7 +45,7 @@ def dseg_font(sz):
     return ImageFont.truetype(str(DSEG7), int(sz * S))
 
 def clock_font(sz):
-    return ImageFont.truetype(str(CLOCK_MONO), int(sz * S))
+    return ImageFont.truetype(str(CLOCK_FONT), int(sz * S))
 
 def hline(d, y):
     d.line([(sx(LEFT), sy(y)), (sx(RIGHT), sy(y))], fill=DIVIDER, width=2)

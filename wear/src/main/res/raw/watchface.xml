@@ -29,9 +29,10 @@
             </TimeText>
         </DigitalClock>
 
-        <!-- Ambient primary time (salmon, upper-left) -->
+        <!-- Ambient time drawn by CanvasRenderer (drawAmbient); hidden in WFF -->
         <DigitalClock x="36" y="48" width="200" height="80">
             <Variant mode="NORMAL" target="alpha" value="0" />
+            <Variant mode="AMBIENT" target="alpha" value="0" />
             <TimeText format="hh:mm" align="LEFT">
                 <Font family="sans-serif" size="52" weight="BOLD" color="#FFFA8072" />
             </TimeText>
@@ -44,9 +45,7 @@
                     primaryProvider="com.watchapp/com.watchapp.complications.WatchDataComplicationService"
                     primaryProviderType="WATCH_APP" />
             </Complication>
-            <Variant mode="AMBIENT">
-                <BoundingRect x="280" y="300" width="100" height="32" />
-            </Variant>
+            <Variant mode="AMBIENT" target="alpha" value="0" />
         </ComplicationSlot>
 
         <ComplicationSlot slotId="101" name="SLOT_WEATHER_ICON" displayName="Weather">
@@ -56,9 +55,7 @@
                     primaryProvider="com.watchapp/com.watchapp.complications.WatchDataComplicationService"
                     primaryProviderType="WATCH_APP" />
             </Complication>
-            <Variant mode="AMBIENT">
-                <BoundingRect x="388" y="296" width="56" height="56" />
-            </Variant>
+            <Variant mode="AMBIENT" target="alpha" value="0" />
         </ComplicationSlot>
 
         <ComplicationSlot slotId="102" name="SLOT_WIND" displayName="Wind">
@@ -68,9 +65,7 @@
                     primaryProvider="com.watchapp/com.watchapp.complications.WatchDataComplicationService"
                     primaryProviderType="WATCH_APP" />
             </Complication>
-            <Variant mode="AMBIENT">
-                <BoundingRect x="280" y="332" width="100" height="24" />
-            </Variant>
+            <Variant mode="AMBIENT" target="alpha" value="0" />
         </ComplicationSlot>
 
         <ComplicationSlot slotId="103" name="SLOT_CONDITIONS" displayName="Conditions">
@@ -151,6 +146,7 @@
                     primaryProviderType="WATCH_APP" />
             </Complication>
             <Variant mode="NORMAL" target="alpha" value="0" />
+            <Variant mode="AMBIENT" target="alpha" value="0" />
         </ComplicationSlot>
 
         <ComplicationSlot slotId="111" name="SLOT_AMBIENT_TZ2" displayName="TZ2">
@@ -161,6 +157,7 @@
                     primaryProviderType="WATCH_APP" />
             </Complication>
             <Variant mode="NORMAL" target="alpha" value="0" />
+            <Variant mode="AMBIENT" target="alpha" value="0" />
         </ComplicationSlot>
 
         <Group x="0" y="0" width="450" height="450">

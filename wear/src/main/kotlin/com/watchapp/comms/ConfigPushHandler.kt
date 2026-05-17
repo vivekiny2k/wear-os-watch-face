@@ -20,7 +20,11 @@ object ConfigPushHandler {
             repo.saveUnits(bundle.units)
             repo.saveRefresh(bundle.refresh.weatherIntervalMinutes)
             repo.saveTimezone(bundle.timezone)
-            repo.saveButtons(bundle.buttons)
+            if (bundle.panels.isNotEmpty()) {
+                repo.savePanels(bundle.panels)
+            } else {
+                repo.saveButtons(bundle.buttons)
+            }
             ConfigSync.reloadWatchFaceTimezone(context)
             ConfigSync.scheduleRefresh(context)
             Log.i(

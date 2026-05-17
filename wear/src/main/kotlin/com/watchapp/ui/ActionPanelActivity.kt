@@ -1,13 +1,17 @@
 package com.watchapp.ui
 
+import android.content.BroadcastReceiver
+import android.content.Context
+import android.content.Intent
+import android.content.IntentFilter
 import android.os.Bundle
+import android.os.PowerManager
 import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
@@ -17,6 +21,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -35,21 +40,25 @@ import androidx.wear.compose.material.MaterialTheme
 import androidx.wear.compose.material.Text
 import com.watchapp.actions.WatchActionHandler
 import com.watchapp.comms.ActionEvents
+import com.watchapp.comms.ConfigSync
 import com.watchapp.data.ConfigRepository
+import com.watchapp.data.FaceDataRefresher
 import com.watchapp.shared.ActionJson
 import com.watchapp.shared.ActionTarget
 import com.watchapp.shared.ButtonConfig
-import com.watchapp.shared.toActionMessage
 import com.watchapp.shared.DefaultButtons
 import com.watchapp.shared.MessagePaths
-import com.watchapp.comms.ConfigSync
-import com.watchapp.data.FaceDataRefresher
+import com.watchapp.shared.toActionMessage
 import com.watchapp.util.LocationPermission
 import com.watchapp.util.NodeMessaging
 import kotlinx.coroutines.launch
+import kotlin.math.PI
+import kotlin.math.cos
+import kotlin.math.sin
 
 class ActionPanelActivity : ComponentActivity() {
     private val configRepo by lazy { ConfigRepository(this) }
+    private var screenOffReceiver: BroadcastReceiver? = null
 
     private val locationPermissionLauncher = registerForActivityResult(
         ActivityResultContracts.RequestMultiplePermissions(),
@@ -75,9 +84,10 @@ class ActionPanelActivity : ComponentActivity() {
             locationPermissionLauncher.launch(LocationPermission.required)
         }
         setContent {
-            var buttons by remember { mutableStateOf(DefaultButtons.panelOne()) }
+            var panels by remember { mutableStateOf(DefaultButtons.allPanels()) }
+            var panelIndex by remember { mutableIntStateOf(0) }
             LaunchedEffect(Unit) {
-                buttons = configRepo.getButtons()
+                panels = configRepo.getPanels()
             }
             LaunchedEffect(Unit) {
                 ActionEvents.messages.collect { msg ->
@@ -86,12 +96,33 @@ class ActionPanelActivity : ComponentActivity() {
             }
             MaterialTheme {
                 ActionPanelScreen(
-                    buttons = buttons,
+                    panels = panels,
+                    panelIndex = panelIndex,
+                    onPanelIndexChange = { panelIndex = it },
                     onDismiss = { finish() },
                     onButton = { handleButton(it) },
                 )
             }
         }
+    }
+
+    override fun onStart() {
+        super.onStart()
+        val receiver = object : BroadcastReceiver() {
+            override fun onReceive(context: Context?, intent: Intent?) {
+                if (intent?.action == Intent.ACTION_SCREEN_OFF) finish()
+            }
+        }
+        screenOffReceiver = receiver
+        registerReceiver(receiver, IntentFilter(Intent.ACTION_SCREEN_OFF))
+    }
+
+    override fun onStop() {
+        screenOffReceiver?.let { unregisterReceiver(it) }
+        screenOffReceiver = null
+        val pm = getSystemService(POWER_SERVICE) as PowerManager
+        if (!pm.isInteractive) finish()
+        super.onStop()
     }
 
     private fun handleButton(button: ButtonConfig) {
@@ -124,25 +155,22 @@ class ActionPanelActivity : ComponentActivity() {
     }
 }
 
-private val buttonPositions = mapOf(
-    "photo" to Pair(68, 24),
-    "video" to Pair(130, 24),
-    "zoom10" to Pair(24, 72),
-    "zoom3" to Pair(68, 72),
-    "zoom1" to Pair(130, 72),
-    "zoom06" to Pair(174, 72),
-    "mic" to Pair(68, 130),
-    "selfie" to Pair(130, 130),
-    "refresh" to Pair(24, 130),
-)
+private val ButtonSize = 48.dp
+private val HubSize = 56.dp
+private val OrbitRadius = 72.dp
 
 @Composable
 private fun ActionPanelScreen(
-    buttons: List<ButtonConfig>,
+    panels: List<List<ButtonConfig>>,
+    panelIndex: Int,
+    onPanelIndexChange: (Int) -> Unit,
     onDismiss: () -> Unit,
     onButton: (ButtonConfig) -> Unit,
 ) {
     val scope = rememberCoroutineScope()
+    val buttons = panels.getOrElse(panelIndex) { emptyList() }
+    val panelCount = panels.size.coerceAtLeast(1)
+
     Box(
         modifier = Modifier
             .fillMaxSize()
@@ -151,61 +179,96 @@ private fun ActionPanelScreen(
                     colors = listOf(Color(0xFF1A4A4A), Color(0xFF0D2B2B)),
                 ),
             ),
+        contentAlignment = Alignment.Center,
     ) {
+        val count = buttons.size.coerceAtLeast(1)
         buttons.forEachIndexed { index, button ->
-            val pos = buttonPositions[button.id] ?: fallbackPosition(index)
-            ActionButton(
-                label = button.label,
-                emoji = button.icon,
-                modifier = Modifier.offset(pos.first.dp, pos.second.dp),
-                onClick = { scope.launch { onButton(button) } },
-            )
+            val angle = (2.0 * PI * index / count) - (PI / 2.0)
+            val dx = (OrbitRadius.value * cos(angle)).dp
+            val dy = (OrbitRadius.value * sin(angle)).dp
+            Box(
+                modifier = Modifier
+                    .offset(x = dx, y = dy)
+                    .size(ButtonSize),
+                contentAlignment = Alignment.Center,
+            ) {
+                ActionButton(
+                    emoji = button.icon,
+                    onClick = { scope.launch { onButton(button) } },
+                )
+            }
         }
 
-        Box(
-            modifier = Modifier
-                .align(Alignment.BottomCenter)
-                .offset(y = (-28).dp)
-                .size(56.dp)
-                .clip(CircleShape)
-                .background(Color(0xFFE8A0A0))
-                .clickable { onDismiss() },
-            contentAlignment = Alignment.Center,
-        ) {
+        CenterHub(
+            panelIndex = panelIndex,
+            panelCount = panelCount,
+            onClick = {
+                if (panelCount <= 1 || panelIndex >= panelCount - 1) {
+                    onDismiss()
+                } else {
+                    onPanelIndexChange(panelIndex + 1)
+                }
+            },
+        )
+    }
+}
+
+@Composable
+private fun CenterHub(
+    panelIndex: Int,
+    panelCount: Int,
+    onClick: () -> Unit,
+) {
+    val (primary, secondary) = when {
+        panelCount <= 1 -> "⌂" to "face"
+        panelIndex < panelCount - 1 -> "${panelIndex + 1}" to "next"
+        else -> "⌂" to "face"
+    }
+    Box(
+        modifier = Modifier
+            .size(HubSize)
+            .clip(CircleShape)
+            .background(Color(0xFF1A1A2E).copy(alpha = 0.95f))
+            .clickable(onClick = onClick),
+        contentAlignment = Alignment.Center,
+    ) {
+        Column(horizontalAlignment = Alignment.CenterHorizontally) {
             Text(
-                text = "Dismiss",
-                color = Color(0xFF2244AA),
-                fontSize = 11.sp,
+                text = primary,
+                fontSize = 18.sp,
                 fontWeight = FontWeight.Bold,
+                color = Color(0xFFE8A0A0),
+                textAlign = TextAlign.Center,
+            )
+            Text(
+                text = secondary,
+                fontSize = 9.sp,
+                color = Color(0xFF7A90B0),
                 textAlign = TextAlign.Center,
             )
         }
     }
 }
 
-private fun fallbackPosition(index: Int): Pair<Int, Int> {
-    val col = index % 3
-    val row = index / 3
-    return Pair(24 + col * 56, 24 + row * 56)
-}
-
 @Composable
 private fun ActionButton(
-    label: String,
     emoji: String,
-    modifier: Modifier = Modifier,
     onClick: () -> Unit,
 ) {
-    Column(
-        modifier = modifier
-            .size(48.dp)
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
             .clip(CircleShape)
             .background(Color(0xFF1A1A2E))
             .clickable(onClick = onClick),
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.Center,
+        contentAlignment = Alignment.Center,
     ) {
-        Text(text = emoji, fontSize = 14.sp)
-        Text(text = label, color = Color(0xFF7A90B0), fontSize = 7.sp)
+        Text(
+            text = emoji,
+            fontSize = if (emoji.length > 2) 14.sp else 18.sp,
+            fontWeight = FontWeight.Bold,
+            color = Color(0xFFE8E8F0),
+            textAlign = TextAlign.Center,
+        )
     }
 }

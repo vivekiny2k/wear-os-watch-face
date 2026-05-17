@@ -29,7 +29,8 @@ data class AppConfig(
     val units: UnitsConfig = UnitsConfig(),
     val refresh: RefreshConfig = RefreshConfig(),
     val timezone: TimezoneConfig = TimezoneConfig(),
-    val buttons: List<ButtonConfig> = DefaultButtons.panelOne(),
+    val buttons: List<ButtonConfig> = DefaultButtons.flatButtons(),
+    val panels: List<List<ButtonConfig>> = DefaultButtons.allPanels(),
 )
 
 /** Full config payload sent phone → watch via message API (backup to data layer). */
@@ -39,6 +40,7 @@ data class ConfigPushBundle(
     val refresh: RefreshConfig,
     val timezone: TimezoneConfig,
     val buttons: List<ButtonConfig>,
+    val panels: List<List<ButtonConfig>> = emptyList(),
 )
 
 object ConfigJson {
@@ -49,4 +51,19 @@ object ConfigJson {
 
     fun decodeButtons(raw: String): List<ButtonConfig> =
         json.decodeFromString(ButtonConfigList.serializer(), raw).buttons
+
+    fun encodePanels(panels: List<List<ButtonConfig>>): String =
+        json.encodeToString(
+            ButtonPanels.serializer(),
+            ButtonPanels(panels.map { ButtonConfigList(it) }),
+        )
+
+    fun decodePanels(raw: String): List<List<ButtonConfig>> {
+        val asPanels = runCatching {
+            json.decodeFromString(ButtonPanels.serializer(), raw).panels.map { it.buttons }
+        }.getOrNull()
+        if (!asPanels.isNullOrEmpty()) return asPanels
+        val legacy = decodeButtons(raw)
+        return if (legacy.isNotEmpty()) listOf(legacy) else emptyList()
+    }
 }

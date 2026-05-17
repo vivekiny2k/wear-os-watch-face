@@ -25,6 +25,7 @@ class ConfigPusher(private val context: Context) {
         refresh: RefreshConfig,
         timezone: TimezoneConfig,
         buttons: List<ButtonConfig>,
+        panels: List<List<ButtonConfig>> = emptyList(),
     ): PushResult {
         val nodes = Wearable.getNodeClient(context).connectedNodes.await()
         if (nodes.isEmpty()) {
@@ -39,10 +40,11 @@ class ConfigPusher(private val context: Context) {
             put(client, DataPaths.CONFIG_UNITS, ConfigJson.json.encodeToString(UnitsConfig.serializer(), units))
             put(client, DataPaths.CONFIG_REFRESH, ConfigJson.json.encodeToString(RefreshConfig.serializer(), refresh))
             put(client, DataPaths.CONFIG_TIMEZONE, ConfigJson.json.encodeToString(TimezoneConfig.serializer(), timezone))
-            put(client, DataPaths.CONFIG_BUTTONS, ConfigJson.encodeButtons(buttons))
+            val panelPayload = if (panels.isNotEmpty()) ConfigJson.encodePanels(panels) else ConfigJson.encodeButtons(buttons)
+            put(client, DataPaths.CONFIG_BUTTONS, panelPayload)
             val nodeIds = nodes.map { it.id }
             pushTimezoneMessage(nodeIds, timezone)
-            pushConfigMessage(nodeIds, units, refresh, timezone, buttons)
+            pushConfigMessage(nodeIds, units, refresh, timezone, buttons, panels)
             val names = nodes.joinToString { it.displayName }
             Log.i(TAG, "pushAll: synced to $names (data layer + messages)")
             PushResult(success = true, message = "Pushed to watch ($names)")
@@ -60,14 +62,17 @@ class ConfigPusher(private val context: Context) {
             buttons = repo.getButtons(),
         )
 
-    suspend fun pushButtons(buttons: List<ButtonConfig>): PushResult {
+    suspend fun pushButtons(buttons: List<ButtonConfig>): PushResult =
+        pushPanels(listOf(buttons))
+
+    suspend fun pushPanels(panels: List<List<ButtonConfig>>): PushResult {
         val nodes = Wearable.getNodeClient(context).connectedNodes.await()
         if (nodes.isEmpty()) {
             return PushResult(success = false, message = "No watch connected")
         }
         return runCatching {
-            put(Wearable.getDataClient(context), DataPaths.CONFIG_BUTTONS, ConfigJson.encodeButtons(buttons))
-            PushResult(success = true, message = "Buttons pushed")
+            put(Wearable.getDataClient(context), DataPaths.CONFIG_BUTTONS, ConfigJson.encodePanels(panels))
+            PushResult(success = true, message = "Panels pushed")
         }.getOrElse { PushResult(success = false, message = it.message ?: "Push failed") }
     }
 
@@ -86,10 +91,11 @@ class ConfigPusher(private val context: Context) {
         refresh: RefreshConfig,
         timezone: TimezoneConfig,
         buttons: List<ButtonConfig>,
+        panels: List<List<ButtonConfig>> = emptyList(),
     ) {
         val payload = ConfigJson.json.encodeToString(
             ConfigPushBundle.serializer(),
-            ConfigPushBundle(units, refresh, timezone, buttons),
+            ConfigPushBundle(units, refresh, timezone, buttons, panels),
         ).encodeToByteArray()
         val messageClient = Wearable.getMessageClient(context)
         for (nodeId in nodeIds) {

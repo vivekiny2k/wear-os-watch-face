@@ -1,6 +1,7 @@
 package com.watchapp.watchface
 
 import android.content.Intent
+import android.util.Log
 import android.graphics.Canvas
 import android.graphics.Color
 import android.graphics.Paint
@@ -98,6 +99,7 @@ private class ReferenceFaceRenderer(
     private val bgPaint = Paint().apply { color = FaceColors.background }
     private val ambientBgPaint = Paint().apply { color = FaceColors.ambientBackground }
     private val dividerPaint = Paint().apply { color = FaceColors.divider }
+    private var lastAmbientLayoutLogKey = -1
 
     override fun render(canvas: Canvas, bounds: Rect, zonedDateTime: ZonedDateTime) {
         val data = WatchDataStore.get()
@@ -336,116 +338,90 @@ private class ReferenceFaceRenderer(
         data: com.watchapp.data.WatchFaceData,
     ) {
         drawFaceBackground(canvas, bounds, ambientBgPaint)
-        val slot = AmbientBurnInLayout.slotFor(zonedDateTime)
-        val timeXDesign = AmbientBurnInLayout.timeAnchorX(slot)
-        val timeX = bounds.scaleX(timeXDesign)
         val (tz1Line, tz2Line) = AmbientTzLines.resolve(appContext, data, zonedDateTime)
-        val tzMidY = slot.timeTop + AmbientBurnInLayout.AMBIENT_TIME_BOX_H +
-            AmbientBurnInLayout.AMBIENT_TZ_GAP + AmbientBurnInLayout.AMBIENT_TZ_LINE_H
-        val tzMaxW = bounds.scaleX(AmbientBurnInLayout.tzMaxWidth(slot, timeXDesign, tzMidY))
 
         val ambientTimePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
             color = FaceColors.ambientTime
             typeface = FaceFonts.clock(appContext)
-            fitDesignText(bounds, FaceTypography.SIZE_AMBIENT_CLOCK, 80f, CLOCK_AMBIENT_FIT_SAMPLE)
+            fitDesignText(
+                bounds,
+                AmbientBurnInLayout.AMBIENT_TIME_BOX_H,
+                AmbientBurnInLayout.AMBIENT_TIME_BOX_H,
+                CLOCK_AMBIENT_FIT_SAMPLE,
+            )
         }
-        val ambientSubPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        val ambientTzPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
             color = FaceColors.ambientSub
-            textAlign = ambientAlign(slot.timeAlignLeft)
-            fitDesignText(bounds, FaceTypography.SIZE_AMBIENT_SUB, 24f, "DEL")
+            fitDesignText(bounds, FaceTypography.SIZE_AMBIENT_SUB, FaceTypography.SIZE_AMBIENT_SUB, "DEL 00:00")
         }
+        val timeBox = AmbientBurnInLayout.timeBox(
+            bounds,
+            zonedDateTime,
+            ambientTimePaint,
+            ambientTzPaint,
+            ambientTzPaint,
+        )
+        ambientTimePaint.textAlign = timeBox.anchor.textAlign
+        ambientTzPaint.textAlign = timeBox.anchor.textAlign
+
+        val timeX = bounds.scaleX(timeBox.drawX)
+        val tzMaxW = bounds.scaleX(timeBox.maxTextWidthDesign)
+
         val ambientTempPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
             color = FaceColors.ambientTemp
-            textAlign = ambientAlign(slot.weatherAlignRight)
             fitDesignText(bounds, FaceTypography.SIZE_AMBIENT_TEMP, 32f, data.temperature)
         }
+        val windPaint = Paint(ambientTzPaint).apply {
+            color = FaceColors.ambientWindColor(data.wind)
+        }
+        val weatherBox = AmbientBurnInLayout.weatherBox(bounds, zonedDateTime, ambientTempPaint, windPaint)
+        ambientTempPaint.textAlign = weatherBox.anchor.textAlign
+        windPaint.textAlign = weatherBox.anchor.textAlign
+
+        maybeLogAmbientLayout(zonedDateTime, timeBox, weatherBox)
 
         val time = zonedDateTime.format(DateTimeFormatter.ofPattern("HH:mm"))
-        val timeBaseline = bounds.baselineInBoxClipped(
-            slot.timeTop,
-            AmbientBurnInLayout.AMBIENT_TIME_BOX_H,
-            ambientTimePaint,
-            timeXDesign,
-        )
         canvas.drawTabularText(
             time,
             timeX,
-            timeBaseline,
+            timeBox.clockBaseline,
             ambientTimePaint,
-            ambientAlign(slot.timeAlignLeft),
+            timeBox.anchor.textAlign,
+        )
+        canvas.drawText(
+            ambientTzPaint.fittedSingleLine(tz1Line, tzMaxW),
+            timeX,
+            timeBox.tz1Baseline,
+            ambientTzPaint,
+        )
+        canvas.drawText(
+            ambientTzPaint.fittedSingleLine(tz2Line, tzMaxW),
+            timeX,
+            timeBox.tz2Baseline,
+            ambientTzPaint,
         )
 
-        val timeFm = ambientTimePaint.fontMetrics
-        val timeBottomDesign =
-            (timeBaseline + timeFm.descent - bounds.designOffsetY()) / bounds.layoutScale()
-        val tz1Top = timeBottomDesign + AmbientBurnInLayout.AMBIENT_TZ_GAP
-        val tz2Top = tz1Top + AmbientBurnInLayout.AMBIENT_TZ_LINE_H + AmbientBurnInLayout.AMBIENT_TZ_GAP
+        val weatherX = bounds.scaleX(weatherBox.drawX)
+        val tempMaxW = bounds.scaleX(weatherBox.tempMaxWidthDesign)
+        val windMaxW = bounds.scaleX(weatherBox.windMaxWidthDesign)
         canvas.drawText(
-            ambientSubPaint.fittedSingleLine(tz1Line, tzMaxW),
-            timeX,
-            bounds.baselineInBoxClipped(
-                tz1Top,
-                AmbientBurnInLayout.AMBIENT_TZ_LINE_H,
-                ambientSubPaint,
-                timeXDesign,
-            ),
-            ambientSubPaint,
-        )
-        val ambientTz2Paint = Paint(ambientSubPaint).apply {
-            typeface = FaceFonts.timezone2(appContext)
-        }
-        canvas.drawText(
-            ambientTz2Paint.fittedSingleLine(tz2Line, tzMaxW),
-            timeX,
-            bounds.baselineInBoxClipped(
-                tz2Top,
-                AmbientBurnInLayout.AMBIENT_TZ_LINE_H,
-                ambientTz2Paint,
-                timeXDesign,
-            ),
-            ambientTz2Paint,
-        )
-
-        val weatherTempXDesign = AmbientBurnInLayout.weatherTextAnchorX(slot, slot.weatherTempTop)
-        val weatherWindXDesign = AmbientBurnInLayout.weatherTextAnchorX(slot, slot.weatherWindTop)
-        val weatherTempMaxW = bounds.scaleX(
-            AmbientBurnInLayout.weatherTextMaxWidth(slot, slot.weatherTempTop),
-        )
-        val weatherWindMaxW = bounds.scaleX(
-            AmbientBurnInLayout.weatherTextMaxWidth(slot, slot.weatherWindTop),
-        )
-        canvas.drawText(
-            ambientTempPaint.fittedSingleLine(data.temperature, weatherTempMaxW),
-            bounds.scaleX(weatherTempXDesign),
-            bounds.baselineInBoxClipped(
-                slot.weatherTempTop,
-                AmbientBurnInLayout.WEATHER_TEMP_H,
-                ambientTempPaint,
-                weatherTempXDesign,
-            ),
+            ambientTempPaint.fittedSingleLine(data.temperature, tempMaxW),
+            weatherX,
+            weatherBox.tempBaseline,
             ambientTempPaint,
         )
-        val windPaint = Paint(ambientSubPaint).apply {
-            color = FaceColors.ambientWindColor(data.wind)
-            textAlign = ambientAlign(slot.weatherAlignRight)
-        }
         canvas.drawText(
-            windPaint.fittedSingleLine(data.wind.uppercase(), weatherWindMaxW),
-            bounds.scaleX(weatherWindXDesign),
-            bounds.baselineInBoxClipped(
-                slot.weatherWindTop,
-                AmbientBurnInLayout.WEATHER_WIND_H,
-                windPaint,
-                weatherWindXDesign,
-            ),
+            windPaint.fittedSingleLine(data.wind.uppercase(), windMaxW),
+            weatherX,
+            weatherBox.windBaseline,
             windPaint,
         )
         WeatherIconRenderer.drawAmbient(
             canvas,
             bounds,
             appContext,
-            AmbientBurnInLayout.weatherIconLeft(slot),
-            slot.weatherIconTop,
+            weatherBox.iconLeft,
+            weatherBox.iconTop,
             AmbientBurnInLayout.WEATHER_ICON_SIZE,
             data.windDirectionDegrees,
         )
@@ -453,14 +429,33 @@ private class ReferenceFaceRenderer(
 
     override fun renderHighlightLayer(canvas: Canvas, bounds: Rect, zonedDateTime: ZonedDateTime) = Unit
 
+    private fun maybeLogAmbientLayout(
+        zonedDateTime: ZonedDateTime,
+        timeBox: AmbientBurnInLayout.TimeBox,
+        weatherBox: AmbientBurnInLayout.WeatherBox,
+    ) {
+        val logKey = zonedDateTime.hour * 60 + zonedDateTime.minute
+        if (logKey == lastAmbientLayoutLogKey) return
+        lastAmbientLayoutLogKey = logKey
+        val hour12 = AmbientBurnInLayout.currentHour12(zonedDateTime)
+        val weatherHour = AmbientBurnInLayout.weatherHour12(hour12)
+        Log.i(
+            TAG,
+            "ambient orbit hour12=$hour12 weatherHour=$weatherHour " +
+                "timeAnchor=(${timeBox.anchor.centerX},${timeBox.anchor.centerY}) drawX=${timeBox.drawX} " +
+                "weatherAnchor=(${weatherBox.anchor.centerX},${weatherBox.anchor.centerY}) drawX=${weatherBox.drawX}",
+        )
+    }
+
     override fun onDestroy() {
         WatchFaceInvalidate.unregister()
         super.onDestroy()
     }
-}
 
-private fun ambientAlign(alignLeft: Boolean): Paint.Align =
-    if (alignLeft) Paint.Align.LEFT else Paint.Align.RIGHT
+    companion object {
+        private const val TAG = "WatchFaceAmbient"
+    }
+}
 
 private fun drawFaceBackground(canvas: Canvas, bounds: Rect, paint: Paint) {
     canvas.drawCircle(

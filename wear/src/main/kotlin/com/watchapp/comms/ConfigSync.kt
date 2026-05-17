@@ -55,8 +55,8 @@ object ConfigSync {
                     Log.i(TAG, "Saved timezone: secondary=${tz.secondaryTimezone}")
                 }
                 DataPaths.CONFIG_BUTTONS -> {
-                    val buttons = ConfigJson.decodeButtons(json)
-                    repo.saveButtons(buttons)
+                    val panels = ConfigJson.decodePanels(json)
+                    repo.savePanels(panels)
                 }
                 else -> return false
             }

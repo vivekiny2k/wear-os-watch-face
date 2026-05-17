@@ -25,6 +25,15 @@ object FaceTypography {
     const val SIZE_AMBIENT_TEMP = 48f
 }
 
+/** Text ink height in design px (450 canvas). */
+fun Paint.inkHeightDesign(bounds: Rect): Float =
+    (fontMetrics.descent - fontMetrics.ascent) / bounds.layoutScale()
+
+fun Rect.baselineAtDesignCenter(centerYDesign: Float, paint: Paint): Float {
+    val inkDesign = paint.inkHeightDesign(this)
+    return baselineInBox(centerYDesign - inkDesign / 2f, inkDesign, paint)
+}
+
 fun Paint.fitDesignText(
     bounds: Rect,
     sizeDesign: Float,

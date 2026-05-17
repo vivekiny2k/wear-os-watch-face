@@ -8,7 +8,7 @@ import com.watchapp.R
 /** Typefaces aligned with [faces/preview.jpg]. */
 object FaceFonts {
     private var dseg7Bold: Typeface? = null
-    private var clockMonoBold: Typeface? = null
+    private var clockWideBlack: Typeface? = null
 
     fun digitalSeven(context: Context): Typeface {
         dseg7Bold?.let { return it }
@@ -24,12 +24,12 @@ object FaceFonts {
     /** Ambient TZ2 line. */
     fun timezone2(context: Context): Typeface = digitalSeven(context)
 
-    /** Main HH:mm:ss — fixed-width square mono (no tick jitter). */
+    /** Main HH:mm:ss — Rajdhani Bold (active); tabular draw prevents tick jitter. */
     fun clock(context: Context): Typeface {
-        clockMonoBold?.let { return it }
-        val loaded = ResourcesCompat.getFont(context, R.font.clock_mono_bold)
-            ?: Typeface.create(Typeface.MONOSPACE, Typeface.BOLD)
-        clockMonoBold = loaded
+        clockWideBlack?.let { return it }
+        val loaded = ResourcesCompat.getFont(context, R.font.clock_square_bold)
+            ?: Typeface.create("sans-serif-condensed", Typeface.BOLD)
+        clockWideBlack = loaded
         return loaded
     }
 

@@ -29,6 +29,7 @@ data class AppConfig(
     val units: UnitsConfig = UnitsConfig(),
     val refresh: RefreshConfig = RefreshConfig(),
     val timezone: TimezoneConfig = TimezoneConfig(),
+    val faceMode: String = WatchLayout.REFERENCE,
     val buttons: List<ButtonConfig> = DefaultButtons.flatButtons(),
     val panels: List<List<ButtonConfig>> = DefaultButtons.allPanels(),
 )
@@ -41,6 +42,7 @@ data class ConfigPushBundle(
     val timezone: TimezoneConfig,
     val buttons: List<ButtonConfig>,
     val panels: List<List<ButtonConfig>> = emptyList(),
+    val faceMode: String = WatchLayout.REFERENCE,
 )
 
 object ConfigJson {

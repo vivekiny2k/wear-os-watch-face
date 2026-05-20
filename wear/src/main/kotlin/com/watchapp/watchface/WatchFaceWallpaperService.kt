@@ -20,13 +20,16 @@ import androidx.wear.watchface.WatchFaceService
 import androidx.wear.watchface.WatchFaceType
 import androidx.wear.watchface.WatchState
 import androidx.wear.watchface.style.CurrentUserStyleRepository
-import com.watchapp.WatchApp
 import com.watchapp.comms.ConfigSync
-import com.watchapp.data.FaceDataRefresher
+import com.watchapp.data.FlightGpsTracker
+import com.watchapp.data.FlightModeStore
 import com.watchapp.data.WatchDataStore
+import com.watchapp.sensor.BarometricAltitude
 import com.watchapp.ui.ActionPanelActivity
-import com.watchapp.workers.RefreshWorker
-import kotlinx.coroutines.launch
+import com.watchapp.watchface.flight.FlightModeColors
+import com.watchapp.watchface.flight.FlightModeDrawer
+import android.os.Handler
+import android.os.Looper
 import java.time.ZonedDateTime
 import java.time.format.DateTimeFormatter
 
@@ -38,21 +41,17 @@ class WatchFaceWallpaperService : WatchFaceService() {
         currentUserStyleRepository: CurrentUserStyleRepository,
     ): WatchFace {
         WatchDataStore.hydrate(applicationContext)
+        FlightModeStore.hydrate(applicationContext)
         ConfigSync.bootstrapFromDataLayer(applicationContext)
         ConfigSync.reloadWatchFaceTimezone(applicationContext)
-        RefreshWorker.enqueueNow(applicationContext)
-        if (applicationContext is WatchApp) {
-            (applicationContext as WatchApp).appScope.launch {
-                FaceDataRefresher.refresh(applicationContext)
-            }
-        }
+        ConfigSync.reloadActiveLayout(applicationContext)
         val renderer = ReferenceFaceRenderer(
             surfaceHolder,
             currentUserStyleRepository,
             watchState,
             applicationContext,
         )
-        val tapHandler = CenterTapHandler(surfaceHolder)
+        val centerTapHandler = CenterTapHandler(surfaceHolder)
         return WatchFace(WatchFaceType.DIGITAL, renderer).also { face ->
             face.setTapListener(
                 object : WatchFace.TapListener {
@@ -62,7 +61,7 @@ class WatchFaceWallpaperService : WatchFaceService() {
                         complicationSlot: androidx.wear.watchface.ComplicationSlot?,
                     ) {
                         if (complicationSlot != null) return
-                        if (tapHandler.onTapEvent(tapType, tapEvent)) {
+                        if (centerTapHandler.onTapEvent(tapType, tapEvent)) {
                             val intent = Intent(this@WatchFaceWallpaperService, ActionPanelActivity::class.java)
                                 .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
                             startActivity(intent)
@@ -87,16 +86,24 @@ private class ReferenceFaceRenderer(
     16L,
     false,
 ) {
+    private val mainHandler = Handler(Looper.getMainLooper())
+    private val flightTickRunnable = Runnable { invalidate() }
+    private var lastFlightTimerSec = -1L
+    private var flightGpsActive = false
+
     init {
         WatchDataStore.hydrate(appContext)
         ConfigSync.reloadWatchFaceTimezone(appContext)
+        ConfigSync.reloadActiveLayout(appContext)
         WatchFaceInvalidate.register {
             ConfigSync.reloadWatchFaceTimezone(appContext)
+            ConfigSync.reloadActiveLayout(appContext)
             invalidate()
         }
     }
 
     private val bgPaint = Paint().apply { color = FaceColors.background }
+    private val flightBgPaint = Paint().apply { color = FlightModeColors.background }
     private val ambientBgPaint = Paint().apply { color = FaceColors.ambientBackground }
     private val dividerPaint = Paint().apply { color = FaceColors.divider }
     private var lastAmbientLayoutLogKey = -1
@@ -104,18 +111,48 @@ private class ReferenceFaceRenderer(
     override fun render(canvas: Canvas, bounds: Rect, zonedDateTime: ZonedDateTime) {
         val data = WatchDataStore.get()
         val ambient = watchState.isAmbient.value == true
+        if (!ambient) {
+            BarometricAltitude.register(appContext)
+        }
+        val flight = WatchLayoutState.isFlightLayout()
+        val needFlightGps = flight && !ambient
+        if (needFlightGps != flightGpsActive) {
+            flightGpsActive = needFlightGps
+            FlightGpsTracker.updateRunning(appContext, needFlightGps)
+        }
         dividerPaint.strokeWidth = 2f * bounds.layoutScale()
 
         canvas.save()
         canvas.clipPath(bounds.roundClipPath())
 
-        if (ambient) {
+        if (flight) {
+            if (ambient) {
+                drawFaceBackground(canvas, bounds, ambientBgPaint)
+                FlightModeDrawer.drawAmbient(canvas, bounds, zonedDateTime, appContext)
+            } else {
+                drawFaceBackground(canvas, bounds, flightBgPaint)
+                FlightModeDrawer.drawActive(canvas, bounds, zonedDateTime, data, appContext)
+                scheduleFlightActiveRedraw()
+            }
+        } else if (ambient) {
             drawAmbient(canvas, bounds, zonedDateTime, data)
         } else {
             drawActive(canvas, bounds, zonedDateTime, data)
         }
 
         canvas.restore()
+    }
+
+    private fun scheduleFlightActiveRedraw() {
+        mainHandler.removeCallbacks(flightTickRunnable)
+        if (watchState.isAmbient.value == true || !WatchLayoutState.isFlightLayout()) return
+        if (FlightModeStore.get().tracking) {
+            val sec = FlightModeStore.elapsedMs() / 1000
+            if (sec != lastFlightTimerSec) {
+                lastFlightTimerSec = sec
+            }
+        }
+        mainHandler.postDelayed(flightTickRunnable, 1000L)
     }
 
     private fun drawActive(

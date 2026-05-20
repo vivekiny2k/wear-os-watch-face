@@ -6,8 +6,6 @@ import android.location.Geocoder
 import android.util.Log
 import androidx.core.content.ContextCompat
 import com.google.android.gms.location.LocationServices
-import com.google.android.gms.location.Priority
-import com.google.android.gms.tasks.CancellationTokenSource
 import com.watchapp.sensor.BarometricAltitude
 import com.watchapp.util.OpenMeteoClient
 import kotlinx.coroutines.Dispatchers
@@ -28,7 +26,8 @@ object FaceDataRefresher {
     suspend fun refresh(context: Context): Boolean = withContext(Dispatchers.IO) {
         try {
             val config = ConfigRepository(context).getConfig()
-            val (lat, lon) = resolveLocation(context)
+            val (lat, lon) = LocationResolver.getCurrent(context)
+            FlightLocationStore.update(lat, lon)
 
             val weather = runCatching {
                 OpenMeteoClient().fetch(lat, lon, config.units)
@@ -75,37 +74,6 @@ object FaceDataRefresher {
             Log.e(TAG, "Refresh failed", e)
             false
         }
-    }
-
-    private suspend fun resolveLocation(context: Context): Pair<Double, Double> {
-        val hasPermission = ContextCompat.checkSelfPermission(
-            context,
-            android.Manifest.permission.ACCESS_FINE_LOCATION,
-        ) == PackageManager.PERMISSION_GRANTED ||
-            ContextCompat.checkSelfPermission(
-                context,
-                android.Manifest.permission.ACCESS_COARSE_LOCATION,
-            ) == PackageManager.PERMISSION_GRANTED
-
-        if (!hasPermission) {
-            Log.w(TAG, "Location permission not granted — using Mason OH default")
-            return 39.3601 to -84.3099
-        }
-
-        val fused = LocationServices.getFusedLocationProviderClient(context)
-        val cancel = CancellationTokenSource()
-        var location = fused.lastLocation.await()
-        if (location == null) {
-            location = fused.getCurrentLocation(
-                Priority.PRIORITY_BALANCED_POWER_ACCURACY,
-                cancel.token,
-            ).await()
-        }
-        if (location != null) {
-            return location.latitude to location.longitude
-        }
-        Log.w(TAG, "No GPS fix — using default coordinates")
-        return 39.3601 to -84.3099
     }
 
     private suspend fun resolveGpsAltitudeMsl(context: Context): String {

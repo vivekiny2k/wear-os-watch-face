@@ -42,6 +42,8 @@ object DefaultButtons {
     fun panelTwo(): List<ButtonConfig> = listOf(
         ButtonConfig("mic", "🎤", "Mic", "media", "mic", ActionTarget.PHONE),
         ButtonConfig("refresh", "↻", "Refresh", "watch", "refresh", ActionTarget.WATCH),
+        ButtonConfig("layout", "", "Layout", "watch", "toggle_face", ActionTarget.WATCH),
+        ButtonConfig("flight_start", "▶", "Start/Stop", "watch", "flight_start", ActionTarget.WATCH),
     )
 
     fun allPanels(): List<List<ButtonConfig>> = listOf(panelOne(), panelTwo())

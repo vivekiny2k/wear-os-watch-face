@@ -9,6 +9,8 @@ import com.watchapp.shared.AppConfig
 import com.watchapp.shared.ButtonConfig
 import com.watchapp.shared.ConfigJson
 import com.watchapp.shared.DefaultButtons
+import com.watchapp.shared.PanelDefaultsMerger
+import com.watchapp.shared.WatchLayout
 import com.watchapp.shared.RefreshConfig
 import com.watchapp.shared.TimezoneConfig
 import com.watchapp.shared.UnitsConfig
@@ -24,6 +26,7 @@ class ConfigRepository(private val context: Context) {
     private val timezoneKey = stringPreferencesKey("timezone_json")
     private val buttonsKey = stringPreferencesKey("buttons_json")
     private val panelsKey = stringPreferencesKey("panels_json")
+    private val faceModeKey = stringPreferencesKey("face_mode")
 
     fun getConfig(): AppConfig = runBlocking {
         val prefs = context.configDataStore.data.first()
@@ -34,7 +37,19 @@ class ConfigRepository(private val context: Context) {
         val timezone = prefs[timezoneKey]?.let {
             runCatching { ConfigJson.json.decodeFromString(TimezoneConfig.serializer(), it) }.getOrNull()
         } ?: TimezoneConfig()
-        AppConfig(units = units, refresh = refresh, timezone = timezone)
+        val faceMode = prefs[faceModeKey] ?: WatchLayout.REFERENCE
+        AppConfig(units = units, refresh = refresh, timezone = timezone, faceMode = faceMode)
+    }
+
+    suspend fun getFaceMode(): String =
+        context.configDataStore.data.map { prefs ->
+            prefs[faceModeKey] ?: WatchLayout.REFERENCE
+        }.first()
+
+    suspend fun saveFaceMode(mode: String) {
+        context.configDataStore.edit {
+            it[faceModeKey] = mode
+        }
     }
 
     suspend fun saveUnits(units: UnitsConfig) {
@@ -55,11 +70,13 @@ class ConfigRepository(private val context: Context) {
         }
     }
 
-    suspend fun getPanels(): List<List<ButtonConfig>> =
-        context.configDataStore.data.map { prefs ->
+    suspend fun getPanels(): List<List<ButtonConfig>> {
+        val stored = context.configDataStore.data.map { prefs ->
             prefs[panelsKey]?.let { runCatching { ConfigJson.decodePanels(it) }.getOrNull() }
                 ?: prefs[buttonsKey]?.let { runCatching { ConfigJson.decodePanels(it) }.getOrNull() }
-        }.first()?.takeIf { it.isNotEmpty() } ?: DefaultButtons.allPanels()
+        }.first()?.takeIf { it.isNotEmpty() }
+        return PanelDefaultsMerger.merge(stored ?: DefaultButtons.allPanels())
+    }
 
     suspend fun getButtons(): List<ButtonConfig> = getPanels().flatten()
 

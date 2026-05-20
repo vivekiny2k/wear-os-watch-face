@@ -142,6 +142,12 @@ object FaceLayout {
         if (kotlin.math.abs(dx) >= DESIGN_RADIUS) return DESIGN_CENTER
         return DESIGN_CENTER - sqrt(DESIGN_RADIUS * DESIGN_RADIUS - dx * dx)
     }
+
+    fun maxYInsideCircle(designX: Float): Float {
+        val dx = designX - DESIGN_CENTER
+        if (kotlin.math.abs(dx) >= DESIGN_RADIUS) return DESIGN_CENTER
+        return DESIGN_CENTER + sqrt(DESIGN_RADIUS * DESIGN_RADIUS - dx * dx)
+    }
 }
 
 fun Rect.designSide(): Float = min(width(), height()).toFloat()
@@ -192,13 +198,32 @@ fun Rect.baselineInBoxClipped(
 }
 
 fun Rect.drawHorizontalRule(canvas: Canvas, designY: Float, paint: Paint) {
+    drawChordHorizontalRule(canvas, designY, paint)
+}
+
+fun Rect.drawChordHorizontalRule(canvas: Canvas, designY: Float, paint: Paint) {
     val y = scaleY(designY)
-    canvas.drawLine(scaleX(FaceLayout.LEFT), y, scaleX(FaceLayout.RIGHT), y, paint)
+    canvas.drawLine(
+        scaleX(FaceLayout.chordLeftXAtY(designY)),
+        y,
+        scaleX(FaceLayout.chordRightXAtY(designY)),
+        y,
+        paint,
+    )
 }
 
 fun Rect.drawVerticalRule(canvas: Canvas, designX: Float, y0: Float, y1: Float, paint: Paint) {
+    drawChordVerticalRule(canvas, designX, y0, y1, paint)
+}
+
+fun Rect.drawChordVerticalRule(canvas: Canvas, designX: Float, y0: Float, y1: Float, paint: Paint) {
+    val minY = FaceLayout.minYInsideCircle(designX) + FaceLayout.CHORD_INSET
+    val maxY = FaceLayout.maxYInsideCircle(designX) - FaceLayout.CHORD_INSET
+    val top = maxOf(y0, minY)
+    val bottom = minOf(y1, maxY)
+    if (top >= bottom) return
     val x = scaleX(designX)
-    canvas.drawLine(x, scaleY(y0), x, scaleY(y1), paint)
+    canvas.drawLine(x, scaleY(top), x, scaleY(bottom), paint)
 }
 
 fun Rect.clipDesignBand(canvas: Canvas, top: Float, bottom: Float) {

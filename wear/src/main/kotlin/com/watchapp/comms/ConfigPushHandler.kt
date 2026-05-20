@@ -25,7 +25,9 @@ object ConfigPushHandler {
             } else {
                 repo.saveButtons(bundle.buttons)
             }
+            repo.saveFaceMode(bundle.faceMode)
             ConfigSync.reloadWatchFaceTimezone(context)
+            ConfigSync.reloadActiveLayout(context)
             ConfigSync.scheduleRefresh(context)
             Log.i(
                 TAG,

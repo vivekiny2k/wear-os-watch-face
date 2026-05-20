@@ -2,8 +2,6 @@ package com.watchapp.comms
 
 import android.content.Context
 import android.util.Log
-import androidx.work.ExistingWorkPolicy
-import androidx.work.WorkManager
 import com.google.android.gms.wearable.DataMapItem
 import com.google.android.gms.wearable.Wearable
 import com.watchapp.data.ConfigRepository
@@ -14,6 +12,7 @@ import com.watchapp.shared.TimezoneConfig
 import com.watchapp.shared.UnitsConfig
 import com.watchapp.watchface.WatchFaceConfigCache
 import com.watchapp.watchface.WatchFaceInvalidate
+import com.watchapp.watchface.WatchLayoutState
 import com.watchapp.workers.RefreshWorker
 import kotlinx.coroutines.tasks.await
 
@@ -35,6 +34,13 @@ object ConfigSync {
         }.onFailure { Log.e(TAG, "Failed to reload watch face timezone", it) }
     }
 
+    fun reloadActiveLayout(context: Context) {
+        runCatching {
+            WatchLayoutState.active = ConfigRepository(context).getConfig().faceMode
+            Log.i(TAG, "Active layout: ${WatchLayoutState.active}")
+        }.onFailure { Log.e(TAG, "Failed to reload active layout", it) }
+    }
+
     suspend fun applyJson(context: Context, path: String, json: String): Boolean {
         val repo = ConfigRepository(context)
         val normalized = normalizePath(path) ?: return false
@@ -47,6 +53,7 @@ object ConfigSync {
                 DataPaths.CONFIG_REFRESH -> {
                     val refresh = ConfigJson.json.decodeFromString(RefreshConfig.serializer(), json)
                     repo.saveRefresh(refresh.weatherIntervalMinutes)
+                    RefreshWorker.reschedulePeriodic(context)
                 }
                 DataPaths.CONFIG_TIMEZONE -> {
                     val tz = ConfigJson.json.decodeFromString(TimezoneConfig.serializer(), json)
@@ -80,6 +87,7 @@ object ConfigSync {
             buffer.release()
         }
         reloadWatchFaceTimezone(context)
+        reloadActiveLayout(context)
         if (applied > 0) {
             Log.i(TAG, "Bootstrapped $applied config item(s) from data layer")
             scheduleRefresh(context)
@@ -91,10 +99,7 @@ object ConfigSync {
     fun scheduleRefresh(context: Context) {
         reloadWatchFaceTimezone(context)
         WatchFaceInvalidate.request()
-        WorkManager.getInstance(context).enqueueUniqueWork(
-            "config_refresh",
-            ExistingWorkPolicy.REPLACE,
-            RefreshWorker.oneTimeRequest(),
-        )
+        RefreshWorker.reschedulePeriodic(context)
+        RefreshWorker.enqueueIfDue(context)
     }
 }

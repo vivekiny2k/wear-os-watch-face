@@ -10,6 +10,7 @@ import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
@@ -18,13 +19,14 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.res.painterResource
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -42,11 +44,14 @@ import com.watchapp.actions.WatchActionHandler
 import com.watchapp.comms.ActionEvents
 import com.watchapp.comms.ConfigSync
 import com.watchapp.data.ConfigRepository
-import com.watchapp.data.FaceDataRefresher
+import com.watchapp.data.DataRefreshPolicy
+import com.watchapp.data.FlightModeStore
+import com.watchapp.watchface.LayoutPreviewIcons
 import com.watchapp.shared.ActionJson
 import com.watchapp.shared.ActionTarget
 import com.watchapp.shared.ButtonConfig
 import com.watchapp.shared.DefaultButtons
+import com.watchapp.shared.PanelDefaultsMerger
 import com.watchapp.shared.MessagePaths
 import com.watchapp.shared.toActionMessage
 import com.watchapp.util.LocationPermission
@@ -64,12 +69,17 @@ class ActionPanelActivity : ComponentActivity() {
         ActivityResultContracts.RequestMultiplePermissions(),
     ) { results ->
         if (results.values.any { it }) {
-            lifecycleScope.launch { FaceDataRefresher.refresh(this@ActionPanelActivity) }
+            lifecycleScope.launch {
+                DataRefreshPolicy.refreshIfDue(this@ActionPanelActivity, "permission", force = true)
+            }
         }
     }
 
+    private var panelReload: (() -> Unit)? = null
+
     override fun onResume() {
         super.onResume()
+        panelReload?.invoke()
         lifecycleScope.launch {
             ConfigSync.bootstrapFromDataLayer(this@ActionPanelActivity)
             ConfigSync.reloadWatchFaceTimezone(this@ActionPanelActivity)
@@ -78,16 +88,23 @@ class ActionPanelActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        if (LocationPermission.hasPermission(this)) {
-            lifecycleScope.launch { FaceDataRefresher.refresh(this@ActionPanelActivity) }
-        } else {
+        if (!LocationPermission.hasPermission(this)) {
             locationPermissionLauncher.launch(LocationPermission.required)
         }
         setContent {
             var panels by remember { mutableStateOf(DefaultButtons.allPanels()) }
             var panelIndex by remember { mutableIntStateOf(0) }
-            LaunchedEffect(Unit) {
+            var layoutRevision by remember { mutableIntStateOf(0) }
+            var flightUiRevision by remember { mutableIntStateOf(0) }
+            suspend fun loadPanels() {
                 panels = configRepo.getPanels()
+            }
+            LaunchedEffect(Unit) { loadPanels() }
+            panelReload = {
+                lifecycleScope.launch {
+                    loadPanels()
+                    flightUiRevision++
+                }
             }
             LaunchedEffect(Unit) {
                 ActionEvents.messages.collect { msg ->
@@ -98,9 +115,18 @@ class ActionPanelActivity : ComponentActivity() {
                 ActionPanelScreen(
                     panels = panels,
                     panelIndex = panelIndex,
+                    layoutRevision = layoutRevision,
+                    flightUiRevision = flightUiRevision,
                     onPanelIndexChange = { panelIndex = it },
                     onDismiss = { finish() },
-                    onButton = { handleButton(it) },
+                    onButton = { button ->
+                        handleButton(button) {
+                            when (button.action) {
+                                "toggle_face" -> layoutRevision++
+                                "flight_start" -> flightUiRevision++
+                            }
+                        }
+                    },
                 )
             }
         }
@@ -125,7 +151,7 @@ class ActionPanelActivity : ComponentActivity() {
         super.onStop()
     }
 
-    private fun handleButton(button: ButtonConfig) {
+    private fun handleButton(button: ButtonConfig, onComplete: () -> Unit = {}) {
         lifecycleScope.launch {
             when (button.target) {
                 ActionTarget.WATCH -> {
@@ -133,6 +159,7 @@ class ActionPanelActivity : ComponentActivity() {
                     WatchActionHandler.showResult(this@ActionPanelActivity, result)
                     if (result.ok) {
                         ActionEvents.emit(result.message)
+                        onComplete()
                     }
                 }
                 else -> {
@@ -163,13 +190,16 @@ private val OrbitRadius = 72.dp
 private fun ActionPanelScreen(
     panels: List<List<ButtonConfig>>,
     panelIndex: Int,
+    layoutRevision: Int,
+    flightUiRevision: Int,
     onPanelIndexChange: (Int) -> Unit,
     onDismiss: () -> Unit,
     onButton: (ButtonConfig) -> Unit,
 ) {
-    val scope = rememberCoroutineScope()
     val buttons = panels.getOrElse(panelIndex) { emptyList() }
     val panelCount = panels.size.coerceAtLeast(1)
+    val layoutPreviewRes = remember(layoutRevision) { LayoutPreviewIcons.activeLayoutPreview() }
+    val flightTracking = remember(flightUiRevision) { FlightModeStore.get().tracking }
 
     Box(
         modifier = Modifier
@@ -193,8 +223,17 @@ private fun ActionPanelScreen(
                 contentAlignment = Alignment.Center,
             ) {
                 ActionButton(
-                    emoji = button.icon,
-                    onClick = { scope.launch { onButton(button) } },
+                    emoji = when {
+                        PanelDefaultsMerger.isFlightStart(button) -> if (flightTracking) "⏹" else "▶"
+                        else -> button.icon
+                    },
+                    previewRes = if (PanelDefaultsMerger.isLayoutToggle(button)) layoutPreviewRes else null,
+                    label = when {
+                        PanelDefaultsMerger.isLayoutToggle(button) -> "Layout"
+                        PanelDefaultsMerger.isFlightStart(button) -> "Start/Stop"
+                        else -> null
+                    },
+                    onClick = { onButton(button) },
                 )
             }
         }
@@ -253,6 +292,8 @@ private fun CenterHub(
 @Composable
 private fun ActionButton(
     emoji: String,
+    previewRes: Int?,
+    label: String?,
     onClick: () -> Unit,
 ) {
     Box(
@@ -263,12 +304,23 @@ private fun ActionButton(
             .clickable(onClick = onClick),
         contentAlignment = Alignment.Center,
     ) {
-        Text(
-            text = emoji,
-            fontSize = if (emoji.length > 2) 14.sp else 18.sp,
-            fontWeight = FontWeight.Bold,
-            color = Color(0xFFE8E8F0),
-            textAlign = TextAlign.Center,
-        )
+        if (previewRes != null) {
+            Image(
+                painter = painterResource(previewRes),
+                contentDescription = label ?: "Layout",
+                modifier = Modifier.fillMaxSize(),
+                contentScale = ContentScale.Crop,
+            )
+        }
+        val fallback = label ?: emoji.ifBlank { "◫" }
+        if (previewRes == null || emoji.isNotBlank()) {
+            Text(
+                text = if (previewRes != null && emoji.isNotBlank()) emoji else fallback,
+                fontSize = if (fallback.length > 2) 11.sp else 14.sp,
+                fontWeight = FontWeight.Bold,
+                color = Color(0xFFE8E8F0),
+                textAlign = TextAlign.Center,
+            )
+        }
     }
 }

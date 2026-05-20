@@ -6,6 +6,7 @@ import android.hardware.SensorEvent
 import android.hardware.SensorEventListener
 import android.hardware.SensorManager
 import com.watchapp.data.WatchDataStore
+import com.watchapp.watchface.WatchFaceInvalidate
 import kotlin.math.floor
 import kotlin.math.pow
 
@@ -29,7 +30,7 @@ object BarometricAltitude : SensorEventListener {
         if (registered) return
         val sm = context.getSystemService(Context.SENSOR_SERVICE) as SensorManager
         val sensor = sm.getDefaultSensor(Sensor.TYPE_PRESSURE) ?: return
-        sm.registerListener(this, sensor, SensorManager.SENSOR_DELAY_NORMAL)
+        sm.registerListener(this, sensor, SensorManager.SENSOR_DELAY_UI)
         registered = true
     }
 
@@ -56,15 +57,30 @@ object BarometricAltitude : SensorEventListener {
     }
 
     /** Same as WatchMaker: floor((1-(sprs/P0)^exp)*scale + 0.5) - base_alt */
-    fun altitudeFeet(sensorHpa: Float): Int {
+    fun lastPressureHpa(): Float? = pressureHpa
+
+    fun rawAltitudeFeet(sensorHpa: Float): Int {
         val p0 = seaLevelPressureHpa?.coerceIn(950f, 1050f) ?: SEA_LEVEL_HPA
-        val raw = floor((1.0 - (sensorHpa / p0).toDouble().pow(PRESSURE_EXPONENT)) * FEET_SCALE + 0.5).toInt()
-        return (raw - baseAltitudeFeet).coerceAtLeast(0)
+        return floor((1.0 - (sensorHpa / p0).toDouble().pow(PRESSURE_EXPONENT)) * FEET_SCALE + 0.5).toInt()
+    }
+
+    fun altitudeFeet(sensorHpa: Float): Int =
+        (rawAltitudeFeet(sensorHpa) - baseAltitudeFeet).coerceAtLeast(0)
+
+    fun currentRawAltitudeFeet(): Int {
+        val hpa = pressureHpa ?: return 0
+        return rawAltitudeFeet(hpa)
+    }
+
+    fun currentAltitudeFeet(): Int {
+        val hpa = pressureHpa ?: return 0
+        return altitudeFeet(hpa)
     }
 
     override fun onSensorChanged(event: SensorEvent) {
         if (event.sensor.type != Sensor.TYPE_PRESSURE) return
         pressureHpa = event.values[0]
+        WatchFaceInvalidate.request()
         val label = formatMsl() ?: return
         val current = WatchDataStore.get()
         if (current.altitude == label) return
